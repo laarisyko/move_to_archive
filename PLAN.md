@@ -277,6 +277,24 @@ openclaw-network/
 
 ### Phase 6: Optimization & Scale
 
+- [x] **Hierarchical all-reduce** -- tree-of-rings gradient aggregation
+  - Replaces flat ring (O(N) rounds) with multi-level hierarchy (O(depth * K))
+  - For 1M agents: ~4,000 rounds instead of ~2,000,000 (500x speedup)
+  - Implemented in `engine/openclaw_engine/training/hierarchical.py`
+- [x] **Cluster management & supernode election**
+  - VRF-based deterministic cluster assignment (no coordinator needed)
+  - Automatic leader election (first member of each cluster)
+  - Leadership rotates each round via VRF permutation
+  - Implemented in `engine/openclaw_engine/training/cluster.py`
+- [x] **Gossipsub cluster scoping**
+  - Cluster-local topics (`openclaw/cluster-gradient/L0-C{id}`)
+  - Leader-level topics (`openclaw/leader-gradient/L{level}-SC{id}`)
+  - Prevents gossip floods across 1M+ peers
+  - Implemented in `node/src/network/gossip.rs`
+- [x] **VRF cluster assignment in Rust**
+  - `assign_clusters()`, `cluster_leaders()`, `hierarchical_ring_orders()`
+  - `scaling_stats()` for capacity planning
+  - Implemented in `node/src/consensus/vrf.rs`
 - [ ] Adaptive gradient compression based on bandwidth
 - [ ] Heterogeneous compute support (GPU/CPU/TPU peers)
 - [ ] Dynamic shard rebalancing as peers join/leave
@@ -285,7 +303,47 @@ openclaw-network/
 
 ---
 
-## 6. Key Design Decisions
+## 6. Hierarchical All-Reduce Architecture
+
+For networks with 1,000+ peers, flat ring all-reduce becomes the bottleneck.
+The hierarchical all-reduce replaces the single ring with a tree of smaller
+rings:
+
+```
+1M Agents -- Hierarchical All-Reduce (2 levels, K=1000)
+
+  Level 1 (inter-cluster):    [L0] -- [L1] -- ... -- [L999]
+                                |       |               |
+  Level 0 (intra-cluster):  [1000]  [1000]   ...    [1000]  peers each
+
+  Total rounds: 2 * 999 + 2 * 999 = 3,998  (vs 1,999,998 flat)
+  Speedup: 500x
+```
+
+### Scaling Table
+
+| Agents      | Flat Rounds  | Hier. Rounds | Speedup  | Depth | Cluster K |
+|-------------|-------------|--------------|----------|-------|-----------|
+| 10,000      | 19,998      | 2,016        | 10x      | 2     | 1,000     |
+| 100,000     | 199,998     | 2,196        | 91x      | 2     | 1,000     |
+| 1,000,000   | 1,999,998   | 3,996        | 500x     | 2     | 1,000     |
+| 10,000,000  | 19,999,998  | 4,014        | 4,983x   | 3     | 1,000     |
+| 100,000,000 | 199,999,998 | 4,194        | 47,687x  | 3     | 1,000     |
+
+### Key properties
+
+- **Leaderless:** Cluster leaders are elected deterministically via VRF.
+  No coordinator needed. Leadership rotates each round.
+- **Correct:** Hierarchical produces identical averages to flat ring
+  (verified by Merkle root comparison in tests).
+- **Fault-tolerant:** If a leader drops out, the cluster falls back to
+  its second member. CRDTs handle shard map updates.
+- **Gossip-scoped:** Each cluster has its own gossipsub topics, preventing
+  message floods at scale.
+
+---
+
+## 7. Key Design Decisions
 
 ### Why no central master?
 
@@ -316,7 +374,7 @@ openclaw-network/
 
 ---
 
-## 7. Threat Model Summary
+## 8. Threat Model Summary
 
 | Threat                    | Mitigation                                    |
 |---------------------------|-----------------------------------------------|
@@ -329,7 +387,7 @@ openclaw-network/
 
 ---
 
-## 8. Success Criteria
+## 9. Success Criteria
 
 1. **5+ peers** can discover each other with zero configuration beyond a
    bootstrap address.
@@ -345,3 +403,7 @@ openclaw-network/
    ```
 5. The network **survives 30% peer churn** (peers joining/leaving) during a
    training round without data loss or inconsistency.
+6. **1M agents** can participate in a training round using hierarchical
+   all-reduce with <4,000 communication rounds (vs ~2M flat).
+7. Hierarchical aggregation produces **identical** results to flat ring
+   all-reduce (verified by Merkle root consistency).
