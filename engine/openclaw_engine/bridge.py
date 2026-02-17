@@ -177,3 +177,57 @@ class HttpBridgeServer:
             await writer.drain()
         finally:
             writer.close()
+
+
+class DirectBridgeHandler:
+    """In-process bridge handler for direct Python-to-Python communication.
+
+    Bypasses HTTP/serialization overhead for local simulation and testing.
+    Each simulated peer gets its own handler wrapping its own shard + trainer.
+    """
+
+    def __init__(
+        self,
+        shard: ModelShard,
+        trainer: Optional[LocalTrainer] = None,
+        training_config: Optional[TrainingConfig] = None,
+    ):
+        import torch
+        import torch.nn as nn
+
+        self.shard = shard
+        self.trainer = trainer or LocalTrainer(
+            shard, training_config or TrainingConfig()
+        )
+        self._last_gradients: Dict[str, "torch.Tensor"] = {}
+
+    def train_step(self, input_shape: list = None) -> Dict:
+        """Execute a training step and cache gradients."""
+        import torch
+        import torch.nn as nn
+
+        input_shape = input_shape or [1, 16]
+        x = torch.randn(*input_shape, requires_grad=True)
+
+        target = None
+        loss_fn = None
+        if self.shard.config.is_last:
+            target = torch.randn(input_shape[0], input_shape[-1])
+            loss_fn = nn.MSELoss()
+
+        metrics = self.trainer.train_step(x, target, loss_fn)
+        self._last_gradients = self.trainer.get_gradients()
+        return metrics
+
+    def get_gradients(self) -> Dict[str, "torch.Tensor"]:
+        """Return cached gradient tensors from last training step."""
+        return self._last_gradients
+
+    def set_gradients(self, gradients: Dict[str, "torch.Tensor"]):
+        """Apply aggregated gradients and update model weights."""
+        self.trainer.set_gradients(gradients)
+        self.trainer.apply_gradients()
+
+    def merkle_root(self) -> str:
+        """Compute the Merkle root of current weights."""
+        return self.shard.merkle_root().hex()

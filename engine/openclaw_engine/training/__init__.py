@@ -19,3 +19,4 @@ from .byzantine import (
     score_gradients,
 )
 from .round_coordinator import RoundCoordinator, RoundConfig, RoundPhase
+from .reputation import ReputationTracker, PeerRecord
