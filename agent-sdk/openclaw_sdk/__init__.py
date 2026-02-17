@@ -6,3 +6,4 @@ from .agent import Agent
 from .network import NetworkClient
 from .training import TrainingParticipant
 from .inference import InferenceClient
+from .architecture import ArchitectureEvolver

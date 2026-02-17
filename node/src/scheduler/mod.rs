@@ -97,6 +97,9 @@ pub async fn run(
                     "checkpoint" => {
                         debug!("Checkpoint message from {}", source);
                     }
+                    "architecture" => {
+                        handle_architecture_message(&source.to_string(), &data);
+                    }
                     _ => {
                         warn!("Unknown gossip topic: {}", topic);
                     }
@@ -199,6 +202,50 @@ async fn handle_training_message(
             }
             _ => {
                 debug!("Unknown training message type: {}", msg_type);
+            }
+        }
+    }
+}
+
+fn handle_architecture_message(source: &str, data: &[u8]) {
+    if let Ok(msg) = serde_json::from_slice::<serde_json::Value>(data) {
+        let msg_type = msg
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        match msg_type {
+            "architecture_proposal" => {
+                let proposal_id = msg
+                    .get("proposal_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let model_id = msg
+                    .get("model_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                info!(
+                    "Architecture proposal from {}: proposal={}, model={}",
+                    source, proposal_id, model_id
+                );
+                // Forward to the Python engine for evaluation and voting.
+            }
+            "architecture_vote" => {
+                let proposal_id = msg
+                    .get("proposal_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let decision = msg
+                    .get("decision")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                debug!(
+                    "Architecture vote from {}: proposal={}, decision={}",
+                    source, proposal_id, decision
+                );
+            }
+            _ => {
+                debug!("Unknown architecture message type: {}", msg_type);
             }
         }
     }

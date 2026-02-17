@@ -10,6 +10,7 @@ from typing import Optional
 from .network import NetworkClient
 from .training import TrainingParticipant
 from .inference import InferenceClient
+from .architecture import ArchitectureEvolver
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class Agent:
         self.network = NetworkClient(node_api_url)
         self.training = TrainingParticipant(self.network, self.agent_id)
         self.inference = InferenceClient(self.network)
+        self.architecture = ArchitectureEvolver(self.network, self.agent_id)
 
         logger.info("Agent %s initialized (node: %s)", self.agent_id, node_api_url)
 
@@ -161,6 +163,48 @@ class Agent:
             learning_rate=learning_rate,
             batch_size=batch_size,
         )
+
+    def evolve(
+        self,
+        model: str,
+        mutation_type: str,
+        position: int = 0,
+        **kwargs,
+    ) -> str:
+        """Propose an architecture mutation for collaborative evolution.
+
+        Args:
+            model: Model to evolve.
+            mutation_type: "add_layer", "remove_layer", "widen_layer",
+                "swap_activation", or "insert_skip".
+            position: Layer position for the mutation.
+            **kwargs: Additional mutation parameters (new_output_dim,
+                new_activation, layer_type, input_dim, output_dim).
+
+        Returns:
+            The proposal_id.
+        """
+        return self.architecture.propose_mutation(
+            model_id=model,
+            mutation_type=mutation_type,
+            position=position,
+            **kwargs,
+        )
+
+    def vote_architecture(
+        self,
+        proposal_id: str,
+        decision: str,
+        fitness: float = 0.0,
+    ):
+        """Vote on an architecture proposal from another peer.
+
+        Args:
+            proposal_id: The proposal to vote on.
+            decision: "approve", "reject", or "abstain".
+            fitness: Locally measured fitness score.
+        """
+        self.architecture.vote(proposal_id, decision, fitness)
 
     def peers(self) -> list:
         """List known peers in the network."""

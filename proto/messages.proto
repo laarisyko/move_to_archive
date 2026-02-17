@@ -48,6 +48,8 @@ message GossipMessage {
     TrainingJoin training_join = 4;
     GradientReady gradient_ready = 5;
     CheckpointAnnounce checkpoint_announce = 6;
+    ArchitectureProposal architecture_proposal = 7;
+    ArchitectureVote architecture_vote = 8;
   }
 }
 
@@ -88,6 +90,64 @@ message CheckpointAnnounce {
   PeerId peer_id = 2;
   bytes weights_merkle_root = 3;
   string checkpoint_cid = 4;  // content-addressed checkpoint location
+}
+
+// ---- Architecture evolution messages ----
+
+// A gene describing one layer in the model architecture.
+message LayerGene {
+  string layer_type = 1;       // "linear", "attention", "norm", "activation", etc.
+  uint32 input_dim = 2;
+  uint32 output_dim = 3;
+  uint32 num_heads = 4;
+  string activation = 5;
+  float dropout = 6;
+  int32 skip_target = 7;       // -1 = none
+  string gene_id = 8;
+}
+
+// Full model architecture genome -- serializable, content-addressed.
+message ArchitectureGenome {
+  string model_id = 1;
+  repeated LayerGene genes = 2;
+  uint32 generation = 3;
+  string parent_hash = 4;
+  string genome_hash = 5;       // SHA-256 content hash
+  uint64 estimated_params = 6;
+}
+
+// A mutation that transforms one genome into another.
+message ArchitectureMutation {
+  string mutation_type = 1;     // "add_layer", "remove_layer", "widen_layer", etc.
+  uint32 position = 2;
+  LayerGene gene = 3;           // for add_layer
+  uint32 new_output_dim = 4;    // for widen_layer
+  string new_activation = 5;    // for swap_activation
+  uint32 source_position = 6;   // for insert_skip
+  uint32 target_position = 7;   // for insert_skip
+}
+
+// Proposal to change the model architecture (broadcast via gossipsub).
+message ArchitectureProposal {
+  string proposal_id = 1;
+  PeerId proposer = 2;
+  string model_id = 3;
+  string current_genome_hash = 4;
+  ArchitectureMutation mutation = 5;
+  ArchitectureGenome new_genome = 6;
+  float proposer_fitness = 7;
+  uint64 timestamp_ms = 8;
+  uint64 vote_deadline_ms = 9;
+}
+
+// A peer's vote on an architecture proposal.
+message ArchitectureVote {
+  string proposal_id = 1;
+  PeerId voter = 2;
+  string decision = 3;          // "approve", "reject", "abstain"
+  float measured_fitness = 4;
+  uint32 eval_samples = 5;
+  uint64 timestamp_ms = 6;
 }
 
 // Reputation record maintained locally by each peer.

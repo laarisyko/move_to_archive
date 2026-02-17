@@ -8,6 +8,7 @@ pub const TOPIC_SHARD_MAP: &str = "openclaw/shard-map";
 pub const TOPIC_TRAINING: &str = "openclaw/training";
 pub const TOPIC_GRADIENT: &str = "openclaw/gradient";
 pub const TOPIC_CHECKPOINT: &str = "openclaw/checkpoint";
+pub const TOPIC_ARCHITECTURE: &str = "openclaw/architecture";
 
 /// All topics the node subscribes to.
 pub fn all_topics() -> Vec<IdentTopic> {
@@ -17,6 +18,7 @@ pub fn all_topics() -> Vec<IdentTopic> {
         IdentTopic::new(TOPIC_TRAINING),
         IdentTopic::new(TOPIC_GRADIENT),
         IdentTopic::new(TOPIC_CHECKPOINT),
+        IdentTopic::new(TOPIC_ARCHITECTURE),
     ]
 }
 
@@ -39,6 +41,7 @@ pub fn topic_domain(topic: &str) -> &'static str {
         TOPIC_TRAINING => "training",
         TOPIC_GRADIENT => "gradient",
         TOPIC_CHECKPOINT => "checkpoint",
+        TOPIC_ARCHITECTURE => "architecture",
         _ => "unknown",
     }
 }
