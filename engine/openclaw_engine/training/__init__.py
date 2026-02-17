@@ -20,3 +20,6 @@ from .byzantine import (
 )
 from .round_coordinator import RoundCoordinator, RoundConfig, RoundPhase
 from .reputation import ReputationTracker, PeerRecord
+from .sybil import AdmissionController, PowChallenge, solve, verify
+from .wire import encode, decode, WireMessage
+from .orchestrator import TrainingOrchestrator, OrchestratorConfig, RoundResult
