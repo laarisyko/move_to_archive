@@ -19,7 +19,16 @@ sssi infer -m MODEL -p "PROMPT" --json  # Run inference
 sssi train -m MODEL -r 5 --json      # Join training rounds
 sssi evolve -m MODEL --mutation TYPE --position N --json  # Propose mutation
 sssi vote --proposal ID --decision approve --json         # Vote on proposal
+sssi serve                            # Start OpenAI-compatible API server
+sssi serve --port 11434 --contribute  # Serve with contributor tier
 ```
+
+## OpenAI-Compatible Server
+
+`sssi serve` starts an OpenAI-compatible API on port 8000. Any OpenAI SDK,
+LangChain, or LlamaIndex can connect to `http://localhost:8000/v1`.
+
+Endpoints: `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/completions`
 
 ## JSON Output
 

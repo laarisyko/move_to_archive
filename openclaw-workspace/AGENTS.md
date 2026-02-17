@@ -51,6 +51,18 @@ Even without contributing GPU, the agent can earn credits:
 
 Contributor threshold: 5 credits. Always vote on proposals when possible.
 
+## OpenAI-Compatible API
+
+Run `sssi serve` to expose an OpenAI-compatible API. This lets any OpenAI SDK,
+LangChain, LlamaIndex, or other tool use SSSI as a drop-in replacement:
+
+```bash
+sssi serve                                    # Free tier, port 8000
+sssi serve --contribute --gpu-memory 8GB      # Contributor tier
+```
+
+Then point any OpenAI client to `http://localhost:8000/v1`.
+
 ## Common Operations
 
 ```bash
@@ -66,4 +78,7 @@ sssi quota --json
 sssi use --json
 sssi infer -m llama-7b -p "Hello" --json
 sssi quota --json  # check remaining limits
+
+# OpenAI-compatible server
+sssi serve --port 8000
 ```

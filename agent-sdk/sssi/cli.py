@@ -1,4 +1,4 @@
-"""CLI for SSSI: sssi join | status | infer | train | evolve | vote | node | detect | models | rounds | quota"""
+"""CLI for SSSI: sssi join | status | infer | train | evolve | vote | node | detect | models | rounds | quota | serve"""
 
 from __future__ import annotations
 
@@ -104,6 +104,14 @@ def main():
 
     node_sub.add_parser("stop", help="Stop the P2P node")
     node_sub.add_parser("logs", help="Show node logs")
+
+    # --- sssi serve ---
+    serve_p = subparsers.add_parser("serve", help="Start OpenAI-compatible API server (drop-in replacement)")
+    serve_p.add_argument("--port", type=int, default=8000, help="Port to listen on")
+    serve_p.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    serve_p.add_argument("--contribute", action="store_true", help="Also contribute compute (contributor tier)")
+    serve_p.add_argument("--gpu-memory", default="0", help="GPU memory to contribute")
+    serve_p.add_argument("--accelerator", default="cpu", choices=["cpu", "cuda", "rocm"])
 
     args = parser.parse_args()
     use_json = args.json
@@ -271,6 +279,17 @@ def main():
             print(f"Voted {args.decision} on proposal {args.proposal}")
             print("(+1 contribution credit earned)")
         _out(result, use_json)
+
+    elif args.command == "serve":
+        from .server import run_server
+        run_server(
+            port=args.port,
+            host=args.host,
+            node_url=args.node_url,
+            contribute=args.contribute,
+            gpu_memory=args.gpu_memory,
+            accelerator=args.accelerator,
+        )
 
     elif args.command == "node":
         from .node_manager import NodeManager

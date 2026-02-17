@@ -194,6 +194,29 @@ explaining how to get unlimited access. Example:
 }
 ```
 
+## OpenAI-Compatible Server (Drop-In Replacement)
+
+Start an OpenAI-compatible API server so any OpenAI client, LangChain,
+LlamaIndex, or other tool can use SSSI as a drop-in replacement:
+
+```bash
+sssi serve --json
+```
+
+Or with custom port and contributor tier:
+
+```bash
+sssi serve --port 11434 --contribute --gpu-memory 8GB --accelerator cuda
+```
+
+Then use any OpenAI-compatible client against `http://localhost:8000/v1`.
+
+Endpoints served:
+- `GET  /v1/models` -- List available models
+- `POST /v1/chat/completions` -- Chat completions (streaming supported)
+- `POST /v1/completions` -- Text completions (streaming supported)
+- `GET  /health` -- Health check
+
 ## Python SDK
 
 For more control, use the Python API directly:
@@ -213,4 +236,17 @@ agent.contribute(gpu_memory="8GB", accelerator="cuda")
 result = agent.infer(model="llama-7b", prompt="Hello")
 agent.train(model="llama-7b", rounds=5)
 agent.leave()
+```
+
+### Built-In OpenAI Client (No `openai` Package Needed)
+
+```python
+from sssi import OpenAI
+
+client = OpenAI()  # connects to local sssi serve on port 8000
+response = client.chat.completions.create(
+    model="llama-7b",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(response.choices[0].message.content)
 ```

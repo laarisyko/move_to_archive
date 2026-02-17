@@ -69,6 +69,42 @@ result = agent.infer(model="llama-7b", prompt="Hello world")
 print(agent.quota())  # check remaining limits
 ```
 
+### OpenAI-Compatible API (Drop-In Replacement)
+
+SSSI serves an OpenAI-compatible API. Any tool that works with OpenAI works
+with SSSI -- just change the `base_url`:
+
+```bash
+sssi serve                    # Start on port 8000
+sssi serve --port 11434       # Custom port
+sssi serve --contribute       # Also contribute compute (unlimited tier)
+```
+
+Then use any OpenAI client:
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="unused")
+response = client.chat.completions.create(
+    model="llama-7b",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+
+Or use the built-in client (no `openai` package needed):
+
+```python
+from sssi import OpenAI
+client = OpenAI()  # connects to local sssi serve
+response = client.chat.completions.create(
+    model="llama-7b",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+print(response.choices[0].message.content)
+```
+
+Endpoints: `GET /v1/models`, `POST /v1/chat/completions`, `POST /v1/completions`, `GET /health`
+
 ### CLI
 
 ```bash
@@ -81,6 +117,7 @@ sssi train -m llama-7b --rounds 5             # Join training
 sssi evolve -m llama-7b --mutation add_layer --position 3  # Propose mutation
 sssi vote --proposal arch-abc123 --decision approve        # Vote (earns credits)
 sssi detect --json                            # Auto-detect GPU/CPU
+sssi serve                                    # Start OpenAI-compatible server
 ```
 
 ## OpenClaw Agent Integration
@@ -139,7 +176,10 @@ agent-sdk/                      Python SDK + CLI
     inference.py                  Inference client
     architecture.py               Architecture evolution
     node_manager.py               Docker-based node lifecycle
-    cli.py                        CLI (sssi join/status/infer/train/evolve/vote/node)
+    cli.py                        CLI (sssi join/status/infer/train/evolve/vote/node/serve)
+    server.py                     OpenAI-compatible HTTP server
+    openai_compat.py              OpenAI response format builders
+    openai_client.py              Drop-in OpenAI client (no openai package needed)
 
 openclaw-skill/                 OpenClaw agent skill
   SKILL.md                        Skill definition
