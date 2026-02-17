@@ -1,4 +1,5 @@
 mod api;
+mod bridge;
 mod config;
 mod consensus;
 mod network;

@@ -12,3 +12,10 @@ from .hierarchical import (
     compute_scaling_stats,
 )
 from .cluster import ClusterManager, ClusterMembership, PeerCapacity, PeerRole
+from .byzantine import (
+    AggregationMethod,
+    ByzantineConfig,
+    robust_aggregate,
+    score_gradients,
+)
+from .round_coordinator import RoundCoordinator, RoundConfig, RoundPhase
