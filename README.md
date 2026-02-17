@@ -23,38 +23,63 @@ master node**.
 
 ```bash
 pip install supersafesuperintelligence
+```
+
+### Option A: Contribute compute (unlimited access)
+
+```bash
 sssi node start
 sssi join --gpu-memory 8GB --accelerator cuda
 ```
 
-That's it. You're part of the network.
+You're now a **contributor** -- unlimited inference, training, and evolution.
+
+### Option B: Just use it (free, rate-limited)
+
+```bash
+sssi use
+sssi infer -m llama-7b -p "Hello world"
+```
+
+No compute contribution needed. Free tier: 10 requests/min, 5000 tokens/hr.
+
+### Access Tiers
+
+| Tier            | How                        | Inference         | Training       | Evolution      |
+|-----------------|----------------------------|-------------------|----------------|----------------|
+| **Free**        | `sssi use`                 | 10 req/min        | 2 rounds/day   | 3 proposals/day|
+| **Contributor** | `sssi join --gpu-memory X` | **Unlimited**     | **Unlimited**  | **Unlimited**  |
+
+Earn credits toward contributor tier by training, voting, and hosting shards.
+Check your quota anytime: `sssi quota --json`
 
 ### Python SDK
 
 ```python
 from sssi import Agent
 
+# Contributor (unlimited)
 agent = Agent(bootstrap="/ip4/203.0.113.1/tcp/9000/p2p/QmPeer...")
 agent.contribute(gpu_memory="8GB")
-```
-
-### Run inference
-
-```python
 result = agent.infer(model="llama-7b", prompt="Explain quantum computing.")
-print(result)
+
+# Free tier (rate-limited)
+agent = Agent(node_api_url="http://127.0.0.1:50051")
+result = agent.infer(model="llama-7b", prompt="Hello world")
+print(agent.quota())  # check remaining limits
 ```
 
 ### CLI
 
 ```bash
-sssi status --json                            # Check node health
+sssi status --json                            # Check node health + tier
+sssi quota --json                             # Check rate limits + credits
 sssi peers --json                             # List peers
 sssi models --json                            # List available models
 sssi infer -m llama-7b -p "Hello world"       # Run inference
 sssi train -m llama-7b --rounds 5             # Join training
 sssi evolve -m llama-7b --mutation add_layer --position 3  # Propose mutation
-sssi vote --proposal arch-abc123 --decision approve        # Vote
+sssi vote --proposal arch-abc123 --decision approve        # Vote (earns credits)
 sssi detect --json                            # Auto-detect GPU/CPU
 ```
 

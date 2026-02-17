@@ -4,8 +4,8 @@ description: >
   Join the SSSI decentralized peer-to-peer LLM training and inference network.
   Use when the user wants to contribute GPU/CPU compute to collective AI training,
   run inference on community models, participate in collaborative architecture
-  evolution, or manage their local P2P node. No central server required --
-  all peers are equal.
+  evolution, or manage their local P2P node. No central server required.
+  Two tiers: anyone can use it for free (rate-limited), contributors get unlimited access.
 tools: Bash, Read, Write
 requires:
   bins:
@@ -14,6 +14,18 @@ requires:
 ---
 
 # Super Safe Super Intelligence (SSSI) -- Decentralized LLM Network
+
+## Access Tiers
+
+SSSI has two access tiers:
+
+| Tier            | How to get it                          | Limits                                      |
+|-----------------|----------------------------------------|---------------------------------------------|
+| **Free**        | Just connect (`sssi use`)              | 10 infer/min, 5000 tokens/hr, 2 train/day   |
+| **Contributor** | Contribute compute (`sssi join`)       | UNLIMITED everything                         |
+
+**To earn contributor status:** contribute GPU/CPU via `sssi join`, or earn credits
+by training, hosting model shards, and voting on architecture proposals.
 
 ## First-Time Setup
 
@@ -41,9 +53,36 @@ To connect to an existing network, add a bootstrap address:
 sssi node start --bootstrap /ip4/203.0.113.1/tcp/9000/p2p/12D3KooW...
 ```
 
-## Auto-Detect Resources
+## Joining as Contributor (Unlimited Access)
 
-Run this to detect available GPU/CPU on the current machine:
+Contribute compute to get unlimited access to inference, training, and evolution:
+
+```bash
+sssi join --gpu-memory 8GB --accelerator cuda --json
+```
+
+This advertises your compute capacity and immediately unlocks contributor tier.
+
+## Connecting as Free User (Rate-Limited)
+
+If the user just wants to use the network without contributing compute:
+
+```bash
+sssi use --json
+```
+
+Free tier limits: 10 inference requests/minute, 5000 tokens/hour, 2 training
+rounds/day, 3 architecture proposals/day. Voting is always unlimited.
+
+## Check Your Quota
+
+```bash
+sssi quota --json
+```
+
+Returns your current tier, remaining rate limits, and contribution credits.
+
+## Auto-Detect Resources
 
 ```bash
 sssi detect --json
@@ -51,21 +90,13 @@ sssi detect --json
 
 Returns JSON like `{"accelerator": "cuda", "gpu_memory_mb": 8192, "cpu_cores": 8}`.
 
-## Joining the Network
-
-After the node is running, join and advertise compute capacity:
-
-```bash
-sssi join --gpu-memory 8GB --accelerator cuda --json
-```
-
 ## Checking Status
 
 ```bash
 sssi status --json
 ```
 
-Returns JSON with `agent_id`, `connected`, and `node_health` fields.
+Returns JSON with `agent_id`, `connected`, `contributing`, `tier`, and `node_health`.
 
 ## Listing Peers
 
@@ -85,6 +116,8 @@ sssi models --json
 sssi infer --model llama-7b --prompt "Your prompt here" --max-tokens 256 --json
 ```
 
+If rate-limited, the error includes a hint to contribute compute.
+
 ## Training
 
 Join or propose decentralized training rounds:
@@ -92,6 +125,8 @@ Join or propose decentralized training rounds:
 ```bash
 sssi train --model llama-7b --rounds 5 --lr 0.0001 --batch-size 8 --json
 ```
+
+Training earns contribution credits (10 credits per round).
 
 ## Architecture Evolution
 
@@ -105,13 +140,13 @@ Mutation types: `add_layer`, `remove_layer`, `widen_layer`, `swap_activation`, `
 
 ## Voting on Proposals
 
-Vote on another peer's architecture proposal:
+Vote on another peer's architecture proposal (always free, earns credits):
 
 ```bash
 sssi vote --proposal arch-abc123 --decision approve --fitness 0.85 --json
 ```
 
-Decisions: `approve`, `reject`, `abstain`.
+Decisions: `approve`, `reject`, `abstain`. Each vote earns 1 contribution credit.
 
 ## Listing Training Rounds
 
@@ -128,10 +163,36 @@ sssi node stop                     # Stop node
 sssi node logs                     # View node logs
 ```
 
+## Earning Credits (Path to Contributor Tier)
+
+Even without contributing GPU, you can earn credits to reach contributor tier:
+- Training rounds: 10 credits each
+- Hosting model shards: 1 credit/minute
+- Voting on proposals: 1 credit each
+- Serving inference: 1 credit per request
+
+Contributor threshold: 5 credits. Credits decay with a 24-hour half-life.
+
 ## JSON Output
 
 All commands support `--json` for machine-readable output. Always use
 `--json` when parsing results programmatically.
+
+## Rate Limit Errors
+
+If a rate limit is hit, the CLI returns a JSON error with a `hint` field
+explaining how to get unlimited access. Example:
+
+```json
+{
+  "error": "rate_limit_exceeded",
+  "resource": "inference requests",
+  "limit": 10,
+  "window": "minute",
+  "tier": "free",
+  "hint": "Contribute compute (sssi join --gpu-memory ...) to unlock unlimited access."
+}
+```
 
 ## Python SDK
 
@@ -140,12 +201,16 @@ For more control, use the Python API directly:
 ```python
 from sssi import Agent
 
+# Free tier (rate-limited)
+agent = Agent(node_api_url="http://127.0.0.1:50051")
+result = agent.infer(model="llama-7b", prompt="Hello")
+print(agent.quota())  # check remaining limits
+
+# Contributor tier (unlimited)
 agent = Agent(bootstrap="/ip4/.../tcp/9000/p2p/12D3KooW...")
-agent.connect()
 agent.contribute(gpu_memory="8GB", accelerator="cuda")
+# Now everything is unlimited
 result = agent.infer(model="llama-7b", prompt="Hello")
 agent.train(model="llama-7b", rounds=5)
-proposal_id = agent.evolve(model="llama-7b", mutation_type="add_layer", position=3)
-agent.vote_architecture(proposal_id, "approve", fitness=0.9)
 agent.leave()
 ```

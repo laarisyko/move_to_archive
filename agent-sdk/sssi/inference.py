@@ -12,7 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class InferenceClient:
-    """Client for running inference on models in the SSSI network."""
+    """Client for running inference on models in the SSSI network.
+
+    Rate limits are enforced by the Agent class (not here) so that
+    InferenceClient stays a pure network client.
+    """
 
     def __init__(self, network: NetworkClient):
         self.network = network
@@ -40,8 +44,16 @@ class InferenceClient:
         )
 
         if "error" in result:
-            logger.error("Inference failed: %s", result["error"])
-            return f"[error: {result['error']}]"
+            error = result["error"]
+            # Surface rate limit errors with a helpful message
+            if "rate_limit" in str(error).lower():
+                logger.warning(
+                    "Rate limited. Contribute compute to unlock unlimited access: "
+                    "sssi join --gpu-memory 8GB --accelerator cuda"
+                )
+            else:
+                logger.error("Inference failed: %s", error)
+            return f"[error: {error}]"
 
         return result.get("text", "[no text in response]")
 

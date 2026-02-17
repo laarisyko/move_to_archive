@@ -3,6 +3,15 @@
 This agent participates in the **Super Safe Super Intelligence (SSSI)**
 decentralized P2P LLM network.
 
+## Access Tiers
+
+| Tier            | Access                                          |
+|-----------------|-------------------------------------------------|
+| **Free**        | Rate-limited: 10 infer/min, 2 train/day         |
+| **Contributor** | UNLIMITED: contribute compute via `sssi join`    |
+
+Check current tier: `sssi quota --json`
+
 ## Environment
 
 - The local P2P node runs at `http://127.0.0.1:50051`
@@ -14,8 +23,11 @@ decentralized P2P LLM network.
 1. Check node status: `sssi status --json`
 2. If node is not running: `sssi node start`
 3. Detect compute: `sssi detect --json`
-4. Join network with detected resources: `sssi join --gpu-memory <X> --accelerator <type> --json`
-5. Check peers: `sssi peers --json`
+4. **If contributing compute** (recommended): `sssi join --gpu-memory <X> --accelerator <type> --json`
+   This unlocks unlimited access.
+5. **If just using** (no compute to offer): `sssi use --json`
+   Rate-limited but works immediately.
+6. Check quota: `sssi quota --json`
 
 ## Decision Guidelines
 
@@ -26,15 +38,32 @@ decentralized P2P LLM network.
   Reject if it would destabilize the model (removing critical layers, nonsensical dims).
 - **Resource management**: Don't commit more GPU memory than `sssi detect` reports.
   Leave headroom for inference serving.
+- **Rate limits**: If hitting rate limits, either contribute compute (`sssi join`)
+  or earn credits by voting on proposals and participating in training rounds.
+
+## Earning Credits (Free Tier Path to Contributor)
+
+Even without contributing GPU, the agent can earn credits:
+- Training rounds: 10 credits each
+- Hosting model shards: 1 credit/minute
+- Voting on architecture proposals: 1 credit each
+- Serving inference: 1 credit per request served
+
+Contributor threshold: 5 credits. Always vote on proposals when possible.
 
 ## Common Operations
 
 ```bash
-# Full lifecycle
+# Contributor: full lifecycle (unlimited)
 sssi node start --accelerator cuda --gpu-memory-mb 8192
 sssi join --gpu-memory 8GB --accelerator cuda --json
 sssi train --model llama-7b --rounds 3 --json
 sssi evolve --model llama-7b --mutation add_layer --position 5 --json
 sssi vote --proposal arch-xyz --decision approve --json
-sssi node stop
+sssi quota --json
+
+# Free tier: use without contributing
+sssi use --json
+sssi infer -m llama-7b -p "Hello" --json
+sssi quota --json  # check remaining limits
 ```
