@@ -1,3 +1,10 @@
-"""OpenClaw ML Engine -- model sharding, training, and inference for decentralized LLM."""
+"""OpenClaw: Decentralized LLM training -- The People's AI.
 
-__version__ = "0.1.0"
+Train the world's first truly open language model. Owned by everyone,
+controlled by no one. One command to join:
+
+    pip install openclaw
+    openclaw join
+"""
+
+__version__ = "0.2.0"
