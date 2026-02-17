@@ -1,0 +1,232 @@
+"""CLI for SSSI: sssi join | status | infer | train | evolve | vote | node | detect | models | rounds"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+
+
+def _out(data, as_json: bool = False):
+    """Print data. If as_json, output machine-readable JSON."""
+    if as_json:
+        if isinstance(data, str):
+            print(json.dumps({"result": data}))
+        else:
+            print(json.dumps(data, indent=2))
+    elif isinstance(data, (dict, list)):
+        print(json.dumps(data, indent=2))
+    else:
+        print(data)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="sssi",
+        description="SSSI: Super Safe Super Intelligence -- Decentralized LLM Network",
+    )
+    parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+    parser.add_argument(
+        "--node-url", default="http://127.0.0.1:50051", help="Local node API URL"
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # --- sssi join ---
+    join_p = subparsers.add_parser("join", help="Join the P2P network")
+    join_p.add_argument("--bootstrap", "-b", help="Bootstrap peer multiaddress", default=None)
+    join_p.add_argument("--gpu-memory", default="0", help="GPU memory to contribute (e.g. '8GB')")
+    join_p.add_argument("--accelerator", default="cpu", choices=["cpu", "cuda", "rocm", "tpu"])
+
+    # --- sssi status ---
+    subparsers.add_parser("status", help="Check node and network status")
+
+    # --- sssi peers ---
+    subparsers.add_parser("peers", help="List known peers")
+
+    # --- sssi models ---
+    subparsers.add_parser("models", help="List available models on the network")
+
+    # --- sssi rounds ---
+    subparsers.add_parser("rounds", help="List active training rounds")
+
+    # --- sssi detect ---
+    subparsers.add_parser("detect", help="Auto-detect local compute resources")
+
+    # --- sssi infer ---
+    infer_p = subparsers.add_parser("infer", help="Run inference on a network model")
+    infer_p.add_argument("--model", "-m", required=True, help="Model ID")
+    infer_p.add_argument("--prompt", "-p", required=True, help="Input prompt")
+    infer_p.add_argument("--max-tokens", type=int, default=256)
+    infer_p.add_argument("--temperature", type=float, default=0.7)
+
+    # --- sssi train ---
+    train_p = subparsers.add_parser("train", help="Propose/join a training round")
+    train_p.add_argument("--model", "-m", required=True, help="Model ID")
+    train_p.add_argument("--rounds", "-r", type=int, default=1)
+    train_p.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
+    train_p.add_argument("--batch-size", type=int, default=8)
+
+    # --- sssi evolve ---
+    evolve_p = subparsers.add_parser("evolve", help="Propose an architecture mutation")
+    evolve_p.add_argument("--model", "-m", required=True, help="Model ID")
+    evolve_p.add_argument(
+        "--mutation", required=True,
+        choices=["add_layer", "remove_layer", "widen_layer", "swap_activation", "insert_skip"],
+    )
+    evolve_p.add_argument("--position", type=int, default=0, help="Layer position")
+    evolve_p.add_argument("--dim", type=int, default=256, help="Dimension for add/widen")
+    evolve_p.add_argument("--activation", default="", help="Activation function for swap_activation")
+    evolve_p.add_argument("--layer-type", default="linear", help="Layer type for add_layer")
+
+    # --- sssi vote ---
+    vote_p = subparsers.add_parser("vote", help="Vote on an architecture proposal")
+    vote_p.add_argument("--proposal", required=True, help="Proposal ID")
+    vote_p.add_argument("--decision", required=True, choices=["approve", "reject", "abstain"])
+    vote_p.add_argument("--fitness", type=float, default=0.0, help="Measured fitness score")
+
+    # --- sssi node ---
+    node_p = subparsers.add_parser("node", help="Manage the local P2P node")
+    node_sub = node_p.add_subparsers(dest="node_action")
+
+    node_start = node_sub.add_parser("start", help="Start the P2P node")
+    node_start.add_argument("--bootstrap", "-b", help="Bootstrap peer multiaddress")
+    node_start.add_argument("--p2p-port", type=int, default=9000)
+    node_start.add_argument("--api-port", type=int, default=50051)
+    node_start.add_argument("--accelerator", default="cpu", choices=["cpu", "cuda", "rocm"])
+    node_start.add_argument("--gpu-memory-mb", type=int, default=0)
+    node_start.add_argument("--no-docker", action="store_true", help="Use local binary instead of Docker")
+
+    node_sub.add_parser("stop", help="Stop the P2P node")
+    node_sub.add_parser("logs", help="Show node logs")
+
+    args = parser.parse_args()
+    use_json = args.json
+
+    if args.command is None:
+        parser.print_help()
+        sys.exit(0)
+
+    from .agent import Agent
+
+    if args.command == "join":
+        agent = Agent(bootstrap=args.bootstrap, node_api_url=args.node_url)
+        agent.connect()
+        agent.contribute(gpu_memory=args.gpu_memory, accelerator=args.accelerator)
+        result = {
+            "agent_id": agent.agent_id,
+            "status": "joined",
+            **agent.status(),
+        }
+        if not use_json:
+            print(f"Agent {agent.agent_id} joined the network.")
+        _out(result, use_json)
+
+    elif args.command == "status":
+        agent = Agent(node_api_url=args.node_url)
+        _out(agent.status(), use_json)
+
+    elif args.command == "peers":
+        agent = Agent(node_api_url=args.node_url)
+        _out(agent.peers(), use_json)
+
+    elif args.command == "models":
+        agent = Agent(node_api_url=args.node_url)
+        _out(agent.models(), use_json)
+
+    elif args.command == "rounds":
+        from .network import NetworkClient
+        client = NetworkClient(args.node_url)
+        _out(client.rounds(), use_json)
+
+    elif args.command == "detect":
+        from .node_manager import detect_compute
+        _out(detect_compute(), use_json)
+
+    elif args.command == "infer":
+        agent = Agent(node_api_url=args.node_url)
+        result = agent.infer(
+            model=args.model,
+            prompt=args.prompt,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+        )
+        _out(result, use_json)
+
+    elif args.command == "train":
+        agent = Agent(node_api_url=args.node_url)
+        agent.connect()
+        agent.train(
+            model=args.model,
+            rounds=args.rounds,
+            learning_rate=args.lr,
+            batch_size=args.batch_size,
+        )
+        result = {"status": "submitted", "model": args.model, "rounds": args.rounds}
+        if not use_json:
+            print(f"Submitted {args.rounds} training round(s) for model {args.model}")
+        _out(result, use_json)
+
+    elif args.command == "evolve":
+        agent = Agent(node_api_url=args.node_url)
+        proposal_id = agent.evolve(
+            model=args.model,
+            mutation_type=args.mutation,
+            position=args.position,
+            new_output_dim=args.dim,
+            new_activation=args.activation,
+            layer_type=args.layer_type,
+            input_dim=args.dim,
+            output_dim=args.dim,
+        )
+        result = {"status": "proposed", "proposal_id": proposal_id, "model": args.model, "mutation": args.mutation}
+        if not use_json:
+            print(f"Proposed {args.mutation} at position {args.position} for {args.model}")
+            print(f"Proposal ID: {proposal_id}")
+        _out(result, use_json)
+
+    elif args.command == "vote":
+        agent = Agent(node_api_url=args.node_url)
+        agent.vote_architecture(
+            proposal_id=args.proposal,
+            decision=args.decision,
+            fitness=args.fitness,
+        )
+        result = {"status": "voted", "proposal_id": args.proposal, "decision": args.decision}
+        if not use_json:
+            print(f"Voted {args.decision} on proposal {args.proposal}")
+        _out(result, use_json)
+
+    elif args.command == "node":
+        from .node_manager import NodeManager
+
+        if args.node_action == "start":
+            mgr = NodeManager(
+                p2p_port=args.p2p_port,
+                api_port=args.api_port,
+                bootstrap=getattr(args, "bootstrap", None),
+                accelerator=args.accelerator,
+                gpu_memory_mb=args.gpu_memory_mb,
+            )
+            result = mgr.start(docker=not args.no_docker)
+            if not use_json and result.get("status") == "started":
+                print(f"Node started on API port {result['api_port']}")
+                print(f"  API: {result.get('api_url', 'unknown')}")
+            _out(result, use_json)
+
+        elif args.node_action == "stop":
+            mgr = NodeManager()
+            result = mgr.stop()
+            if not use_json:
+                print(f"Node {result['status']}")
+            _out(result, use_json)
+
+        elif args.node_action == "logs":
+            mgr = NodeManager()
+            print(mgr.logs())
+
+        else:
+            node_p.print_help()
+
+
+if __name__ == "__main__":
+    main()

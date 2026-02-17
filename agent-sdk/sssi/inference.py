@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Optional
 
 from .network import NetworkClient
 
@@ -13,11 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class InferenceClient:
-    """Client for running inference on models in the OpenClaw network.
-
-    Sends requests to the local node, which routes them through the
-    pipeline if the model is sharded across peers.
-    """
+    """Client for running inference on models in the SSSI network."""
 
     def __init__(self, network: NetworkClient):
         self.network = network
@@ -31,13 +26,6 @@ class InferenceClient:
         top_p: float = 0.9,
     ) -> str:
         """Run synchronous inference.
-
-        Args:
-            model_id: Model to use (e.g. "llama-7b").
-            prompt: Input text.
-            max_tokens: Maximum tokens to generate.
-            temperature: Sampling temperature.
-            top_p: Nucleus sampling threshold.
 
         Returns:
             Generated text.
@@ -73,10 +61,14 @@ class InferenceClient:
 
     def list_models(self) -> list:
         """List available models on the network."""
-        result = self.network.shards()
-        if isinstance(result, dict) and "entries" in result:
+        result = self.network.models()
+        if isinstance(result, list):
+            return result
+        # Fallback: derive from shard map
+        shards = self.network.shards()
+        if isinstance(shards, dict) and "entries" in shards:
             model_ids = set()
-            for entry in result["entries"].values():
+            for entry in shards["entries"].values():
                 if "model_id" in entry:
                     model_ids.add(entry["model_id"])
             return sorted(model_ids)

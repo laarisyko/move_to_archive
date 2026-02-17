@@ -12,14 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class TrainingParticipant:
-    """Manages this agent's participation in decentralized training rounds.
-
-    Handles:
-    - Proposing new training rounds
-    - Joining existing rounds
-    - Publishing gradients
-    - Verifying checkpoints
-    """
+    """Manages this agent's participation in decentralized training rounds."""
 
     def __init__(self, network: NetworkClient, agent_id: str):
         self.network = network
@@ -34,8 +27,6 @@ class TrainingParticipant:
         num_steps: int = 100,
     ) -> str:
         """Propose a new training round to the network.
-
-        Any peer can propose -- there is no central scheduler.
 
         Returns:
             The round_id of the proposed round.
@@ -52,7 +43,7 @@ class TrainingParticipant:
                 "num_steps": num_steps,
             },
         }
-        self.network.publish("openclaw/training", proposal)
+        self.network.publish("sssi/training", proposal)
         self._active_round = round_id
         logger.info("Proposed training round %s for model %s", round_id, model_id)
         return round_id
@@ -64,7 +55,7 @@ class TrainingParticipant:
             "round_id": round_id,
             "peer_id": self.agent_id,
         }
-        self.network.publish("openclaw/training", join_msg)
+        self.network.publish("sssi/training", join_msg)
         self._active_round = round_id
         logger.info("Joined training round %s", round_id)
 
@@ -75,14 +66,7 @@ class TrainingParticipant:
         learning_rate: float = 1e-4,
         batch_size: int = 8,
     ):
-        """Convenience: propose and participate in training rounds.
-
-        Args:
-            model_id: The model to train.
-            num_rounds: How many rounds to participate in.
-            learning_rate: Learning rate.
-            batch_size: Batch size.
-        """
+        """Convenience: propose and participate in training rounds."""
         for i in range(num_rounds):
             round_id = self.propose_round(
                 model_id=model_id,
@@ -99,7 +83,7 @@ class TrainingParticipant:
             "peer_id": self.agent_id,
             "merkle_root": merkle_root,
         }
-        self.network.publish("openclaw/gradient", msg)
+        self.network.publish("sssi/gradient", msg)
 
     def announce_checkpoint(self, round_id: str, weights_merkle_root: str, cid: str = ""):
         """Announce a completed checkpoint after training."""
@@ -110,7 +94,7 @@ class TrainingParticipant:
             "weights_merkle_root": weights_merkle_root,
             "checkpoint_cid": cid,
         }
-        self.network.publish("openclaw/checkpoint", msg)
+        self.network.publish("sssi/checkpoint", msg)
 
     @property
     def active_round(self) -> Optional[str]:

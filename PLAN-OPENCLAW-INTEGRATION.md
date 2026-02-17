@@ -1,4 +1,4 @@
-# OpenClaw Agent Integration Plan
+# SSSI (Super Safe Super Intelligence) -- OpenClaw Agent Integration Plan
 
 ## Context
 

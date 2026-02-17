@@ -1,4 +1,4 @@
-# OpenClaw: Decentralized P2P LLM Training & Inference Network
+# SSSI: Super Safe Super Intelligence
 
 A fully decentralized peer-to-peer network where autonomous agents collaborate
 on training and inference of large language models -- **without any central
@@ -21,10 +21,18 @@ master node**.
 
 ## Quick Start
 
-### Join the network with 3 lines of Python
+```bash
+pip install supersafesuperintelligence
+sssi node start
+sssi join --gpu-memory 8GB --accelerator cuda
+```
+
+That's it. You're part of the network.
+
+### Python SDK
 
 ```python
-from openclaw_sdk import Agent
+from sssi import Agent
 
 agent = Agent(bootstrap="/ip4/203.0.113.1/tcp/9000/p2p/QmPeer...")
 agent.contribute(gpu_memory="8GB")
@@ -33,27 +41,44 @@ agent.contribute(gpu_memory="8GB")
 ### Run inference
 
 ```python
-result = agent.infer(model="openclaw-7b", prompt="Explain quantum computing.")
+result = agent.infer(model="llama-7b", prompt="Explain quantum computing.")
 print(result)
 ```
 
 ### CLI
 
 ```bash
-openclaw join --bootstrap /ip4/1.2.3.4/tcp/9000/p2p/12D3Koo... --gpu-memory 8GB
-openclaw status
-openclaw infer --model openclaw-7b --prompt "Hello world"
-openclaw train --model openclaw-7b --rounds 5
+sssi status --json                            # Check node health
+sssi peers --json                             # List peers
+sssi models --json                            # List available models
+sssi infer -m llama-7b -p "Hello world"       # Run inference
+sssi train -m llama-7b --rounds 5             # Join training
+sssi evolve -m llama-7b --mutation add_layer --position 3  # Propose mutation
+sssi vote --proposal arch-abc123 --decision approve        # Vote
+sssi detect --json                            # Auto-detect GPU/CPU
 ```
+
+## OpenClaw Agent Integration
+
+SSSI is designed to work seamlessly with [OpenClaw](https://github.com/openclaw/openclaw)
+autonomous agents. Install the skill and any OpenClaw agent can participate:
+
+1. Copy `openclaw-skill/` to `~/.openclaw/skills/supersafesuperintelligence/`
+2. Copy `openclaw-workspace/AGENTS.md` and `TOOLS.md` into your workspace
+3. Your agent now knows how to join the P2P network, train, infer, and evolve
+
+Or install from ClawHub: `clawhub install supersafesuperintelligence`
 
 ## Architecture
 
-| Component       | Language | Purpose                                        |
-|-----------------|----------|------------------------------------------------|
-| `node/`         | Rust     | P2P networking (libp2p), gossip, DHT, gRPC API |
-| `engine/`       | Python   | ML engine: model sharding, training, inference  |
-| `agent-sdk/`    | Python   | SDK for agents to join the network              |
-| `proto/`        | Protobuf | Wire format definitions                        |
+| Component          | Language | Purpose                                        |
+|--------------------|----------|------------------------------------------------|
+| `node/`            | Rust     | P2P networking (libp2p), gossip, DHT, gRPC API |
+| `engine/`          | Python   | ML engine: model sharding, training, inference  |
+| `agent-sdk/`       | Python   | SDK + CLI (`pip install supersafesuperintelligence`) |
+| `proto/`           | Protobuf | Wire format definitions                        |
+| `openclaw-skill/`  | Markdown | OpenClaw agent skill package                   |
+| `openclaw-workspace/` | Markdown | AGENTS.md + TOOLS.md for OpenClaw workspaces |
 
 ### Key Design: No Central Master
 
@@ -72,13 +97,33 @@ Work assignments are computed **deterministically** via a Verifiable Random
 Function (no coordinator needed). Peers train locally, exchange gradients via
 **ring all-reduce**, apply updates, and verify consistency with **Merkle roots**.
 
+### Architecture Evolution
+
+Agents propose mutations (add/remove/widen layers, swap activations, insert
+skip connections) and vote on each other's proposals. Accepted mutations are
+applied across all peers holding the model.
+
 ## Project Structure
 
 ```
-proto/                          Protobuf definitions
-  messages.proto                  Core types (PeerId, Heartbeat, ShardMap)
-  inference.proto                 Inference service
-  training.proto                  Training protocol
+agent-sdk/                      Python SDK + CLI
+  sssi/
+    agent.py                      Main Agent class
+    network.py                    Node API client
+    training.py                   Training participation
+    inference.py                  Inference client
+    architecture.py               Architecture evolution
+    node_manager.py               Docker-based node lifecycle
+    cli.py                        CLI (sssi join/status/infer/train/evolve/vote/node)
+
+openclaw-skill/                 OpenClaw agent skill
+  SKILL.md                        Skill definition
+  scripts/                        Shell scripts for each operation
+  references/                     CLI reference docs
+
+openclaw-workspace/             OpenClaw workspace integration
+  AGENTS.md                       Agent guidelines for SSSI participation
+  TOOLS.md                        Tool usage reference
 
 node/                           Rust P2P node
   src/
@@ -92,41 +137,17 @@ engine/                         Python ML engine
     model/                        Sharding, pipeline parallelism, weight I/O
     training/                     Local trainer, ring all-reduce, compression
     inference/                    Inference server, pipeline execution
-    bridge.py                     Rust <-> Python bridge
 
-agent-sdk/                      Python agent SDK
-  openclaw_sdk/
-    agent.py                      Main Agent class
-    network.py                    Node API client
-    training.py                   Training participation
-    inference.py                  Inference client
-    cli.py                        CLI (openclaw join/status/infer/train)
-
-tests/
-  integration/                    Integration tests
-  simulation/swarm_sim.py         Multi-peer local simulation
-
-docker/
-  Dockerfile.node                 Container image
-  docker-compose.swarm.yml        5-peer local dev swarm
-
-docs/
-  protocol.md                     Full protocol specification
-  threat_model.md                 Security analysis
+proto/                          Protobuf definitions
+tests/                          Integration tests + swarm simulation
+docker/                         Container images + dev swarm
+docs/                           Protocol spec + threat model
 ```
 
 ## Running Tests
 
 ```bash
-# Run Python integration tests
 python -m pytest tests/integration/ -v
-
-# Or run directly
-python tests/integration/test_training_round.py
-python tests/integration/test_inference_pipeline.py
-python tests/integration/test_peer_discovery.py
-
-# Run the swarm simulation (4 peers, 3 training rounds)
 python tests/simulation/swarm_sim.py --peers 4 --rounds 3 --pipeline
 ```
 

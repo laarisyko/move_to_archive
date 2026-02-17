@@ -1,8 +1,7 @@
-"""Base agent class -- the main entry point for OpenClaw agents."""
+"""Base agent class -- the main entry point for SSSI agents."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from typing import Optional
@@ -16,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class Agent:
-    """An OpenClaw agent that participates in the decentralized LLM network.
+    """An SSSI agent that participates in the decentralized LLM network.
 
     Usage::
 
-        from openclaw_sdk import Agent
+        from sssi import Agent
 
         agent = Agent(bootstrap="/ip4/203.0.113.1/tcp/9000/p2p/QmPeer...")
         agent.contribute(gpu_memory="8GB")
@@ -41,15 +40,6 @@ class Agent:
         node_api_url: str = "http://127.0.0.1:50051",
         agent_id: Optional[str] = None,
     ):
-        """Initialize an OpenClaw agent.
-
-        Args:
-            bootstrap: Multiaddress of a bootstrap peer. If provided, the SDK
-                will start a local node and connect to the network. If not
-                provided, assumes a node is already running locally.
-            node_api_url: URL of the local node's API endpoint.
-            agent_id: Unique identifier for this agent. Auto-generated if not set.
-        """
         self.agent_id = agent_id or str(uuid.uuid4())[:8]
         self.bootstrap = bootstrap
         self.node_api_url = node_api_url
@@ -63,11 +53,7 @@ class Agent:
         logger.info("Agent %s initialized (node: %s)", self.agent_id, node_api_url)
 
     def connect(self) -> "Agent":
-        """Connect to the P2P network.
-
-        If a bootstrap address was provided, this will instruct the local
-        node to dial the bootstrap peer.
-        """
+        """Connect to the P2P network."""
         if self.bootstrap:
             self.network.dial(self.bootstrap)
 
@@ -81,25 +67,15 @@ class Agent:
         return self
 
     def contribute(self, gpu_memory: str = "0", accelerator: str = "cpu") -> "Agent":
-        """Advertise this agent's compute capacity to the network.
-
-        Args:
-            gpu_memory: GPU memory available (e.g. "8GB", "16GB").
-            accelerator: Type of accelerator ("cpu", "cuda", "rocm").
-        """
+        """Advertise this agent's compute capacity to the network."""
         capacity = {
             "agent_id": self.agent_id,
             "gpu_memory": gpu_memory,
             "accelerator": accelerator,
             "status": "available",
         }
-        self.network.publish("openclaw/heartbeat", capacity)
-        logger.info(
-            "Agent %s contributing: %s %s",
-            self.agent_id,
-            gpu_memory,
-            accelerator,
-        )
+        self.network.publish("sssi/heartbeat", capacity)
+        logger.info("Agent %s contributing: %s %s", self.agent_id, gpu_memory, accelerator)
         return self
 
     def infer(
@@ -109,17 +85,7 @@ class Agent:
         max_tokens: int = 256,
         temperature: float = 0.7,
     ) -> str:
-        """Run inference on a model via the decentralized network.
-
-        Args:
-            model: Model identifier (e.g. "llama-7b").
-            prompt: Input prompt.
-            max_tokens: Maximum tokens to generate.
-            temperature: Sampling temperature.
-
-        Returns:
-            Generated text.
-        """
+        """Run inference on a model via the decentralized network."""
         return self.inference.infer(
             model_id=model,
             prompt=prompt,
@@ -149,14 +115,7 @@ class Agent:
         learning_rate: float = 1e-4,
         batch_size: int = 8,
     ):
-        """Participate in decentralized training rounds.
-
-        Args:
-            model: Model to train.
-            rounds: Number of training rounds to participate in.
-            learning_rate: Learning rate.
-            batch_size: Batch size per step.
-        """
+        """Participate in decentralized training rounds."""
         self.training.join_training(
             model_id=model,
             num_rounds=rounds,
@@ -172,14 +131,6 @@ class Agent:
         **kwargs,
     ) -> str:
         """Propose an architecture mutation for collaborative evolution.
-
-        Args:
-            model: Model to evolve.
-            mutation_type: "add_layer", "remove_layer", "widen_layer",
-                "swap_activation", or "insert_skip".
-            position: Layer position for the mutation.
-            **kwargs: Additional mutation parameters (new_output_dim,
-                new_activation, layer_type, input_dim, output_dim).
 
         Returns:
             The proposal_id.
@@ -197,18 +148,16 @@ class Agent:
         decision: str,
         fitness: float = 0.0,
     ):
-        """Vote on an architecture proposal from another peer.
-
-        Args:
-            proposal_id: The proposal to vote on.
-            decision: "approve", "reject", or "abstain".
-            fitness: Locally measured fitness score.
-        """
+        """Vote on an architecture proposal from another peer."""
         self.architecture.vote(proposal_id, decision, fitness)
 
     def peers(self) -> list:
         """List known peers in the network."""
         return self.network.peers()
+
+    def models(self) -> list:
+        """List available models on the network."""
+        return self.inference.list_models()
 
     def status(self) -> dict:
         """Get current agent and network status."""

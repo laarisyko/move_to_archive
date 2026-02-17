@@ -1,47 +1,47 @@
-"""Network client -- communicates with the local openclaw-node via its API."""
+"""Network client -- communicates with the local SSSI node via its HTTP API."""
 
 from __future__ import annotations
 
 import json
 import logging
 import socket
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
 
 class NetworkClient:
-    """HTTP client for the local openclaw-node API.
-
-    Talks to the Rust node's gRPC/HTTP endpoint to publish messages,
-    query peers, and submit inference/training requests.
-    """
+    """HTTP client for the local SSSI P2P node API."""
 
     def __init__(self, base_url: str = "http://127.0.0.1:50051"):
         self.base_url = base_url.rstrip("/")
 
     def health(self) -> Dict[str, Any]:
-        """Check if the local node is healthy."""
         return self._get("/health")
 
     def peers(self) -> List[Dict[str, Any]]:
-        """List known peers."""
         result = self._get("/peers")
         if isinstance(result, list):
             return result
         return []
 
     def shards(self) -> Dict[str, Any]:
-        """Get the current shard map."""
         return self._get("/shards")
 
+    def models(self) -> List[Dict[str, Any]]:
+        return self._get("/models")
+
+    def rounds(self) -> List[Dict[str, Any]]:
+        return self._get("/rounds")
+
+    def proposals(self) -> List[Dict[str, Any]]:
+        return self._get("/proposals")
+
     def publish(self, topic: str, data: Any):
-        """Publish a message to a gossipsub topic."""
         payload = {"topic": topic, "data": json.dumps(data)}
         return self._post("/publish", payload)
 
     def dial(self, multiaddr: str):
-        """Instruct the node to dial a peer."""
         return self._post("/dial", {"address": multiaddr})
 
     def submit_inference(
@@ -52,7 +52,6 @@ class NetworkClient:
         max_tokens: int = 256,
         temperature: float = 0.7,
     ) -> Dict[str, Any]:
-        """Submit an inference request to the local node."""
         payload = {
             "request_id": request_id,
             "model_id": model_id,
@@ -62,8 +61,28 @@ class NetworkClient:
         }
         return self._post("/infer", payload)
 
+    def submit_train_join(self, model_id: str, rounds: int, lr: float, batch_size: int) -> Dict[str, Any]:
+        return self._post("/train/join", {
+            "model_id": model_id,
+            "rounds": rounds,
+            "learning_rate": lr,
+            "batch_size": batch_size,
+        })
+
+    def submit_evolve(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        return self._post("/evolve/propose", proposal)
+
+    def submit_vote(self, proposal_id: str, decision: str, fitness: float = 0.0) -> Dict[str, Any]:
+        return self._post("/evolve/vote", {
+            "proposal_id": proposal_id,
+            "decision": decision,
+            "measured_fitness": fitness,
+        })
+
+    def detect_compute(self) -> Dict[str, Any]:
+        return self._get("/detect")
+
     def _get(self, path: str) -> Any:
-        """Perform an HTTP GET request."""
         try:
             return self._http_request("GET", path)
         except Exception as e:
@@ -71,7 +90,6 @@ class NetworkClient:
             return {"error": str(e)}
 
     def _post(self, path: str, data: Any) -> Any:
-        """Perform an HTTP POST request with JSON body."""
         try:
             return self._http_request("POST", path, json.dumps(data))
         except Exception as e:
@@ -79,7 +97,6 @@ class NetworkClient:
             return {"error": str(e)}
 
     def _http_request(self, method: str, path: str, body: str = "") -> Any:
-        """Minimal HTTP client using raw sockets (no external deps)."""
         from urllib.parse import urlparse
 
         parsed = urlparse(self.base_url)
@@ -103,11 +120,10 @@ class NetworkClient:
                     break
                 response += chunk
 
-        # Parse response body (skip HTTP headers).
         response_str = response.decode(errors="replace")
         body_start = response_str.find("\r\n\r\n")
         if body_start >= 0:
-            body_str = response_str[body_start + 4 :]
+            body_str = response_str[body_start + 4:]
             try:
                 return json.loads(body_str)
             except json.JSONDecodeError:
