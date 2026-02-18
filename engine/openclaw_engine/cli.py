@@ -134,11 +134,12 @@ def cmd_join(args):
         if result.steps_completed > 0:
             quality = network.genesis.latest_quality
             q_str = f"quality: {quality.score:.0%}" if quality else ""
+            balance = network.credits.get_balance(network.config.peer_id)
             print(
                 f"  Round {round_num:>4d} | "
                 f"loss: {result.avg_loss:.4f} | "
                 f"steps: {result.steps_completed} | "
-                f"tokens: {result.tokens_processed:,} | "
+                f"credits: {balance:.0f} | "
                 f"{q_str}"
             )
 
@@ -158,6 +159,8 @@ def cmd_join(args):
     print(f"  Compute time: {stats['compute_hours']:.2f} hours")
     print(f"  Milestones achieved: {stats['milestones_achieved']}")
     print(f"  Text quality: {stats['current_quality']:.0%}")
+    print(f"  Credits: {stats['credit_balance']:.0f} "
+          f"(earned: {stats['credit_earned']:.0f}, spent: {stats['credit_spent']:.0f})")
 
     # Final sample.
     sample = network.generate("The ", max_tokens=80)

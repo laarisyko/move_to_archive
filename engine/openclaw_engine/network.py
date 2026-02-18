@@ -34,6 +34,7 @@ import torch
 
 from .kickstart import Kickstart, KickstartConfig, KickstartResult
 from .genesis import GenesisTracker, assess_quality
+from .credits import CreditLedger, CreditConfig, InferenceGate
 from .model.checkpoint import CheckpointStore
 from .training.byzantine import AggregationMethod, ByzantineConfig, robust_aggregate
 from .training.reputation import ReputationTracker
@@ -193,6 +194,11 @@ class TrainingNetwork:
             n_layers=model_config.n_layers,
         )
 
+        # Credit system -- earn by contributing, spend on inference.
+        self.credits = CreditLedger()
+        self.inference_gate = InferenceGate(self.credits)
+        self.credits.record_connect(config.peer_id)
+
         # Stats tracking.
         self._stats = NetworkStats(
             peer_id=config.peer_id,
@@ -350,6 +356,13 @@ class TrainingNetwork:
                 round_id,
             )
 
+        # Award credits for this training round.
+        rep_score = self.reputation.get_score(self.config.peer_id)
+        earned = self.credits.earn_training_round(
+            self.config.peer_id, round_id=round_id, reputation_score=rep_score,
+        )
+        self._emit("credits_earned", self.config.peer_id, earned)
+
         # Checkpoint if configured.
         if (
             self._stats.total_rounds % self.config.checkpoint_interval == 0
@@ -476,4 +489,13 @@ class TrainingNetwork:
             "quality_history": genesis_status["quality_history"],
             "generation": genesis_status["generation"],
             "mutations": genesis_status["mutations"],
+            # Credit data.
+            "credit_balance": round(self.credits.get_balance(self.config.peer_id), 1),
+            "credit_earned": round(
+                self.credits.get_account(self.config.peer_id).total_earned, 1
+            ),
+            "credit_spent": round(
+                self.credits.get_account(self.config.peer_id).total_spent, 1
+            ),
+            "credit_network": self.credits.network_stats(),
         }

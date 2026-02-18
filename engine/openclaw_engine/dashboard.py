@@ -50,6 +50,10 @@ class DashboardState:
         self.quality_history: List[float] = []
         self.generation: int = 0
         self.mutations: int = 0
+        # Credit tracking.
+        self.credit_balance: float = 0.0
+        self.credit_earned: float = 0.0
+        self.credit_spent: float = 0.0
         self._subscribers: Set[asyncio.Queue] = set()
 
     def update(self, stats: dict):
@@ -76,6 +80,10 @@ class DashboardState:
             self.quality_history = stats["quality_history"]
         self.generation = stats.get("generation", self.generation)
         self.mutations = stats.get("mutations", self.mutations)
+        # Credit fields.
+        self.credit_balance = stats.get("credit_balance", self.credit_balance)
+        self.credit_earned = stats.get("credit_earned", self.credit_earned)
+        self.credit_spent = stats.get("credit_spent", self.credit_spent)
 
         # Notify WebSocket subscribers.
         snapshot = self.snapshot()
@@ -121,6 +129,10 @@ class DashboardState:
             "quality_history": self.quality_history[-200:],
             "generation": self.generation,
             "mutations": self.mutations,
+            # Credit data.
+            "credit_balance": round(self.credit_balance, 1),
+            "credit_earned": round(self.credit_earned, 1),
+            "credit_spent": round(self.credit_spent, 1),
         }
 
 
@@ -314,6 +326,9 @@ canvas { width: 100%; height: 200px; }
 .status { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
           background: #44ff44; margin-right: 8px; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+.credit-card { border-color: #33aa33; }
+.credit-card .value { color: #44ff44; }
+.credit-detail { color: #448844; font-size: 10px; margin-top: 4px; }
 .genesis-section { padding: 0 32px 24px; }
 .genesis-card { background: linear-gradient(135deg, #0d0d1a 0%, #12121f 100%);
                 border: 1px solid #3333aa; border-radius: 12px; padding: 20px; }
@@ -376,6 +391,11 @@ canvas { width: 100%; height: 200px; }
   <div class="card">
     <div class="label">Model Age</div>
     <div class="value" id="age">-</div>
+  </div>
+  <div class="card credit-card">
+    <div class="label">Credits</div>
+    <div class="value" id="credits">-</div>
+    <div class="unit credit-detail">earned: <span id="credit-earned">0</span> | spent: <span id="credit-spent">0</span></div>
   </div>
 </div>
 
@@ -448,6 +468,9 @@ function updateUI(data) {
   document.getElementById('compute').textContent = (data.compute_hours || 0).toFixed(1);
   document.getElementById('params').textContent = fmt(data.model_params || 0);
   document.getElementById('age').textContent = data.model_age || '-';
+  document.getElementById('credits').textContent = fmt(data.credit_balance || 0);
+  document.getElementById('credit-earned').textContent = fmt(data.credit_earned || 0);
+  document.getElementById('credit-spent').textContent = fmt(data.credit_spent || 0);
   if (data.latest_sample) {
     document.getElementById('sample').textContent = data.latest_sample;
   }
