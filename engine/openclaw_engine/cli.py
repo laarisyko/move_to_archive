@@ -97,6 +97,21 @@ def cmd_join(args):
         print(f"\n  Dashboard:  http://localhost:{args.dashboard_port}")
         _start_dashboard_thread(network, args.dashboard_port)
 
+    # Track milestones for CLI output.
+    from .genesis import MILESTONE_DESCRIPTIONS, MILESTONE_EMOJI
+
+    milestone_count = [0]
+
+    def on_milestone(event):
+        emoji = MILESTONE_EMOJI.get(event.milestone, "*")
+        print(f"\n  {emoji} MILESTONE: {event.description}")
+        if event.sample_text:
+            print(f"     Sample: {event.sample_text[:80]}")
+        print()
+        milestone_count[0] += 1
+
+    network.on("milestone", on_milestone)
+
     # Training loop.
     print("\n  Starting training...\n")
     print("  " + "-" * 60)
@@ -117,12 +132,14 @@ def cmd_join(args):
         result = network.run_training_round()
 
         if result.steps_completed > 0:
+            quality = network.genesis.latest_quality
+            q_str = f"quality: {quality.score:.0%}" if quality else ""
             print(
                 f"  Round {round_num:>4d} | "
                 f"loss: {result.avg_loss:.4f} | "
                 f"steps: {result.steps_completed} | "
                 f"tokens: {result.tokens_processed:,} | "
-                f"time: {result.time_ms:.0f}ms"
+                f"{q_str}"
             )
 
             if round_num % 10 == 0 and round_num > 0:
@@ -139,6 +156,8 @@ def cmd_join(args):
           f"loss {stats['current_loss']:.4f}")
     print(f"  Total tokens: {stats['tokens_processed']:,}")
     print(f"  Compute time: {stats['compute_hours']:.2f} hours")
+    print(f"  Milestones achieved: {stats['milestones_achieved']}")
+    print(f"  Text quality: {stats['current_quality']:.0%}")
 
     # Final sample.
     sample = network.generate("The ", max_tokens=80)

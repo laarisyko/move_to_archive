@@ -43,6 +43,13 @@ class DashboardState:
         self.loss_history: List[float] = []
         self.peer_locations: List[Dict] = []  # Anonymized locations.
         self.start_time: float = time.time()
+        # Genesis tracking.
+        self.model_age: str = "0s"
+        self.milestones: List[str] = []
+        self.current_quality: float = 0.0
+        self.quality_history: List[float] = []
+        self.generation: int = 0
+        self.mutations: int = 0
         self._subscribers: Set[asyncio.Queue] = set()
 
     def update(self, stats: dict):
@@ -60,6 +67,15 @@ class DashboardState:
         self.latest_sample = stats.get("latest_sample", self.latest_sample)
         if "loss_history" in stats:
             self.loss_history = stats["loss_history"]
+        # Genesis fields.
+        self.model_age = stats.get("model_age", self.model_age)
+        if "milestones" in stats:
+            self.milestones = stats["milestones"]
+        self.current_quality = stats.get("current_quality", self.current_quality)
+        if "quality_history" in stats:
+            self.quality_history = stats["quality_history"]
+        self.generation = stats.get("generation", self.generation)
+        self.mutations = stats.get("mutations", self.mutations)
 
         # Notify WebSocket subscribers.
         snapshot = self.snapshot()
@@ -98,6 +114,13 @@ class DashboardState:
             "loss_history": self.loss_history[-200:],
             "uptime_hours": round((time.time() - self.start_time) / 3600, 2),
             "timestamp": time.time(),
+            # Genesis data.
+            "model_age": self.model_age,
+            "milestones": self.milestones,
+            "current_quality": self.current_quality,
+            "quality_history": self.quality_history[-200:],
+            "generation": self.generation,
+            "mutations": self.mutations,
         }
 
 
@@ -291,6 +314,25 @@ canvas { width: 100%; height: 200px; }
 .status { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
           background: #44ff44; margin-right: 8px; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+.genesis-section { padding: 0 32px 24px; }
+.genesis-card { background: linear-gradient(135deg, #0d0d1a 0%, #12121f 100%);
+                border: 1px solid #3333aa; border-radius: 12px; padding: 20px; }
+.genesis-card h2 { font-size: 16px; color: #8888cc; margin-bottom: 16px; }
+.quality-bar-container { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.quality-label { color: #6666aa; font-size: 12px; text-transform: uppercase; min-width: 80px; }
+.quality-bar { flex: 1; height: 12px; background: #1a1a3a; border-radius: 6px; overflow: hidden; }
+.quality-fill { height: 100%; background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff44);
+                border-radius: 6px; transition: width 0.5s ease; width: 0%; }
+.quality-value { color: #aaaacc; font-size: 14px; min-width: 40px; }
+.milestones { display: flex; flex-direction: column; gap: 8px; }
+.milestone { display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+             background: #1a1a2e; border-radius: 8px; border-left: 3px solid #6644ff; }
+.milestone .ms-icon { font-size: 20px; }
+.milestone .ms-text { flex: 1; color: #ccccee; font-size: 13px; }
+.milestone .ms-age { color: #6666aa; font-size: 11px; }
+.milestone-empty { color: #444466; font-style: italic; font-size: 13px; }
+.milestone.new { animation: milestone-glow 2s ease; }
+@keyframes milestone-glow { 0% { background: #2a2a5e; } 100% { background: #1a1a2e; } }
 .footer { text-align: center; padding: 32px; color: #444466; font-size: 12px; }
 </style>
 </head>
@@ -332,9 +374,22 @@ canvas { width: 100%; height: 200px; }
     <div class="unit" id="params-unit"></div>
   </div>
   <div class="card">
-    <div class="label">Uptime</div>
-    <div class="value" id="uptime">-</div>
-    <div class="unit">hours</div>
+    <div class="label">Model Age</div>
+    <div class="value" id="age">-</div>
+  </div>
+</div>
+
+<div class="genesis-section">
+  <div class="genesis-card">
+    <h2>Genesis Timeline — Watching Intelligence Emerge</h2>
+    <div class="quality-bar-container">
+      <div class="quality-label">Text Quality</div>
+      <div class="quality-bar"><div class="quality-fill" id="quality-fill"></div></div>
+      <div class="quality-value" id="quality-value">0%</div>
+    </div>
+    <div id="milestones" class="milestones">
+      <div class="milestone-empty">Waiting for first milestone...</div>
+    </div>
   </div>
 </div>
 
@@ -342,6 +397,13 @@ canvas { width: 100%; height: 200px; }
   <div class="chart-card">
     <h2>Training Loss Over Time</h2>
     <canvas id="loss-chart"></canvas>
+  </div>
+</div>
+
+<div class="chart-container">
+  <div class="chart-card">
+    <h2>Text Quality Score Over Time</h2>
+    <canvas id="quality-chart"></canvas>
   </div>
 </div>
 
@@ -353,7 +415,7 @@ canvas { width: 100%; height: 200px; }
 </div>
 
 <div class="footer">
-  OpenClaw: BitTorrent for AI training. A million volunteers training one model.
+  OpenClaw: BitTorrent for AI training. A million volunteers training one model, owned by everyone, controlled by no one.
 </div>
 
 <script>
@@ -363,6 +425,17 @@ function fmt(n) {
   if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
   return n.toString();
 }
+
+var msIcons = {
+  'first_nonrandom': '🌱', 'first_real_word': '📝', 'first_word_pair': '🤝',
+  'first_phrase': '💬', 'first_punctuation': '✏️', 'first_sentence': '📖',
+  'first_paragraph': '📚', 'first_coherent': '🧠', 'first_mutation': '🧬',
+  'loss_below_5': '📉', 'loss_below_4': '📉', 'loss_below_3': '📉',
+  'loss_below_2': '📉', 'loss_below_1': '🏆', 'rounds_10': '🔄',
+  'rounds_100': '🔄', 'rounds_1000': '🔄', 'peers_10': '👥',
+  'peers_100': '🏘️', 'peers_1000': '🏙️', 'peers_10000': '🌍'
+};
+var prevMilestones = 0;
 
 function updateUI(data) {
   document.getElementById('peers').textContent = data.peer_count || 0;
@@ -374,12 +447,34 @@ function updateUI(data) {
   document.getElementById('tokens').textContent = fmt(data.tokens_processed || 0);
   document.getElementById('compute').textContent = (data.compute_hours || 0).toFixed(1);
   document.getElementById('params').textContent = fmt(data.model_params || 0);
-  document.getElementById('uptime').textContent = (data.uptime_hours || 0).toFixed(1);
+  document.getElementById('age').textContent = data.model_age || '-';
   if (data.latest_sample) {
     document.getElementById('sample').textContent = data.latest_sample;
   }
+  // Quality bar.
+  var q = data.current_quality || 0;
+  document.getElementById('quality-fill').style.width = (q * 100) + '%';
+  document.getElementById('quality-value').textContent = (q * 100).toFixed(0) + '%';
+  // Milestones.
+  if (data.milestones && data.milestones.length > 0) {
+    var el = document.getElementById('milestones');
+    var isNew = data.milestones.length > prevMilestones;
+    prevMilestones = data.milestones.length;
+    el.innerHTML = '';
+    data.milestones.slice().reverse().forEach(function(ms, i) {
+      var d = document.createElement('div');
+      d.className = 'milestone' + (i === 0 && isNew ? ' new' : '');
+      var icon = msIcons[ms] || '⭐';
+      d.innerHTML = '<span class="ms-icon">' + icon + '</span>' +
+        '<span class="ms-text">' + ms.replace(/_/g, ' ') + '</span>';
+      el.appendChild(d);
+    });
+  }
   if (data.loss_history && data.loss_history.length > 0) {
     drawChart(data.loss_history);
+  }
+  if (data.quality_history && data.quality_history.length > 0) {
+    drawQualityChart(data.quality_history);
   }
 }
 
@@ -417,6 +512,35 @@ function drawChart(losses) {
   for (var i = 0; i < losses.length; i++) {
     var x = pad + (w * i / (losses.length - 1));
     var y = pad + h - (h * (losses[i] - min) / range);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+function drawQualityChart(scores) {
+  var canvas = document.getElementById('quality-chart');
+  var ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * 2;
+  canvas.height = 400;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (scores.length < 2) return;
+  var pad = 40;
+  var w = canvas.width - pad * 2;
+  var h = canvas.height - pad * 2;
+  // Grid lines.
+  ctx.strokeStyle = '#1a1a3a'; ctx.lineWidth = 1;
+  for (var i = 0; i <= 4; i++) {
+    var y = pad + (h * i / 4);
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(pad + w, y); ctx.stroke();
+    ctx.fillStyle = '#444466'; ctx.font = '20px sans-serif';
+    ctx.fillText((1.0 - i / 4).toFixed(2), 0, y + 6);
+  }
+  // Quality curve (green gradient).
+  ctx.strokeStyle = '#44cc44'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (var i = 0; i < scores.length; i++) {
+    var x = pad + (w * i / (scores.length - 1));
+    var y = pad + h - (h * scores[i]);
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();

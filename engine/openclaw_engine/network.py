@@ -33,6 +33,7 @@ from typing import Callable, Dict, List, Optional
 import torch
 
 from .kickstart import Kickstart, KickstartConfig, KickstartResult
+from .genesis import GenesisTracker, assess_quality
 from .model.checkpoint import CheckpointStore
 from .training.byzantine import AggregationMethod, ByzantineConfig, robust_aggregate
 from .training.reputation import ReputationTracker
@@ -184,6 +185,14 @@ class TrainingNetwork:
         # Peer registry.
         self.peers: Dict[str, PeerInfo] = {}
 
+        # Genesis tracker -- the model's life story.
+        self.genesis = GenesisTracker(model_id=model_config.model_id)
+        self.genesis.record_birth(
+            model_params=self.kickstart.model.num_parameters,
+            hidden_dim=model_config.hidden_dim,
+            n_layers=model_config.n_layers,
+        )
+
         # Stats tracking.
         self._stats = NetworkStats(
             peer_id=config.peer_id,
@@ -321,6 +330,26 @@ class TrainingNetwork:
             (time.monotonic() - self._start_time) / 3600
         )
 
+        # Record in genesis tracker -- this detects milestones.
+        new_milestones_before = len(self.genesis.milestones)
+        self.genesis.record_round(
+            round_id=round_id,
+            loss=result.avg_loss,
+            sample_text=result.sample_text,
+            tokens_processed=result.tokens_processed,
+            peers=len(self.peers) + 1,
+        )
+
+        # Emit milestone events if any new ones were detected.
+        for ms_event in self.genesis.milestones[new_milestones_before:]:
+            self._emit("milestone", ms_event)
+            logger.info(
+                "MILESTONE: %s (age=%s, round=%s)",
+                ms_event.description,
+                self.genesis.age_str,
+                round_id,
+            )
+
         # Checkpoint if configured.
         if (
             self._stats.total_rounds % self.config.checkpoint_interval == 0
@@ -424,6 +453,7 @@ class TrainingNetwork:
     def get_stats_dict(self) -> dict:
         """Get stats as a plain dict (JSON-serializable)."""
         s = self.stats
+        genesis_status = self.genesis.get_status()
         return {
             "peer_id": s.peer_id,
             "connected_peers": s.connected_peers,
@@ -438,4 +468,12 @@ class TrainingNetwork:
             "uptime_secs": round(s.uptime_secs, 1),
             "latest_sample": s.latest_sample[:200],
             "loss_history": s.loss_history[-100:],
+            # Genesis data.
+            "model_age": genesis_status["age_str"],
+            "milestones_achieved": genesis_status["milestones_achieved"],
+            "milestones": genesis_status["milestones"],
+            "current_quality": genesis_status["current_quality"],
+            "quality_history": genesis_status["quality_history"],
+            "generation": genesis_status["generation"],
+            "mutations": genesis_status["mutations"],
         }
